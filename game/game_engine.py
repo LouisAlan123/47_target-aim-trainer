@@ -24,6 +24,9 @@ class GameEngine:
         self.score = 0
         self.font = pygame.font.SysFont("Arial", 26)
         self.game_over = False
+        self.should_quit = False
+        self.game_over_frames = 0  # frames since the round ended
+        self.big_font = pygame.font.SysFont("Arial", 56, bold=True)
 
     def _spawn_target(self):
         x = random.randint(self.margin, self.width - self.margin)
@@ -32,6 +35,12 @@ class GameEngine:
 
     def handle_event(self, event):
         if self.game_over:
+            # Ignore input for a moment so a frantic last click doesn't
+            # instantly dismiss the screen before it can be read.
+            if self.game_over_frames > 30 and event.type in (
+                pygame.MOUSEBUTTONDOWN, pygame.KEYDOWN
+            ):
+                self.should_quit = True
             return
         if event.type == pygame.MOUSEBUTTONDOWN:
             self._handle_click(event.pos)
@@ -52,6 +61,7 @@ class GameEngine:
 
     def update(self):
         if self.game_over:
+            self.game_over_frames += 1
             return
 
         self.time_left_frames -= 1
@@ -71,10 +81,16 @@ class GameEngine:
         return round(100 * self.hits / total, 1)
 
     def render(self, screen):
+        if self.game_over:
+            self._render_game_over(screen)
+            return
+
         r = int(self.target.visual_radius())
         pygame.draw.circle(screen, RED, (self.target.x, self.target.y), r)
         pygame.draw.circle(screen, WHITE, (self.target.x, self.target.y), r, 2)
+        self._render_hud(screen)
 
+    def _render_hud(self, screen):
         score_text = self.font.render(f"Score: {self.score}", True, WHITE)
         screen.blit(score_text, (10, 10))
 
@@ -85,7 +101,24 @@ class GameEngine:
         acc_text = self.font.render(f"Accuracy: {self.accuracy()}%", True, WHITE)
         screen.blit(acc_text, (self.width // 2 - 90, 10))
 
-        if self.game_over and not getattr(self, "_game_over_logged", False):
-            # NOTE: no proper game-over screen yet - see Task 2 in the README.
-            print(f"Time's up! Final score: {self.score}  Accuracy: {self.accuracy()}%")
-            self._game_over_logged = True
+    def _blit_centered(self, screen, surf, y):
+        screen.blit(surf, (self.width // 2 - surf.get_width() // 2, y))
+
+    def _render_game_over(self, screen):
+        self._render_hud(screen)
+        overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        screen.blit(overlay, (0, 0))
+
+        self._blit_centered(screen, self.big_font.render("GAME OVER", True, WHITE), 110)
+        self._blit_centered(screen, self.font.render(f"Final Score: {self.score}", True, WHITE), 200)
+        self._blit_centered(screen, self.font.render(f"Accuracy: {self.accuracy()}%", True, WHITE), 240)
+        self._blit_centered(
+            screen,
+            self.font.render(f"Hits: {self.hits}   Misses: {self.misses}", True, WHITE),
+            280,
+        )
+        if self.game_over_frames > 30:
+            self._blit_centered(
+                screen, self.font.render("Press any key or click to exit", True, (200, 200, 200)), 370
+            )
