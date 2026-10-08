@@ -1,6 +1,7 @@
 import pygame
 import random
 from .target import Target
+from .sound import SoundManager
 
 # Game Engine
 
@@ -27,6 +28,7 @@ class GameEngine:
         self.round_seconds = 30
         self.font = pygame.font.SysFont("Arial", 26)
         self.big_font = pygame.font.SysFont("Arial", 56, bold=True)
+        self.sounds = SoundManager()
         self.should_quit = False
         self.difficulty = "Medium"
 
@@ -88,9 +90,11 @@ class GameEngine:
         if self.target.contains_point(x, y):
             self.hits += 1
             self.score += 1
+            self.sounds.play_hit()
             self.target = self._spawn_target()
         else:
             self.misses += 1
+            self.sounds.play_miss()
 
     def handle_input(self):
         # Reserved for continuously-held-key input; this game is
@@ -105,11 +109,13 @@ class GameEngine:
         self.time_left_frames -= 1
         if self.time_left_frames <= 0:
             self.game_over = True
+            self.sounds.play_end()
             return
 
         self.target.update()
         if self.target.expired():
             self.misses += 1  # letting a target time out counts as a miss too
+            self.sounds.play_miss()
             self.target = self._spawn_target()
 
     def accuracy(self):
